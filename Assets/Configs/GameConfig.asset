@@ -17,7 +17,7 @@ MonoBehaviour:
   Match3ColorCount: 6
   MergeWidth: 8
   MergeHeight: 8
-  MergeSpawnInterval: 3
+  MergeSpawnInterval: 1
   BallSpeed: 6
   BricksRows: 5
   BricksCols: 8

@@ -11,7 +11,7 @@ TagManager:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Objects
   - Water
   - UI
   - Ball
@@ -41,6 +41,9 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: Gems
+    uniqueID: 1036410933
+    locked: 0
   - name: Default
     uniqueID: 0
     locked: 0

@@ -7,13 +7,22 @@ namespace MiniIT.CORE
     /// </summary>
     public static class GameSignals
     {
-        /// <summary>Score changed event.</summary>
+        /// <summary>Score added event - use this for incremental score changes.</summary>
+        public static event Action<int> OnScoreAdded;
+
+        /// <summary>Score changed event - use this for absolute score changes.</summary>
         public static event Action<int> OnScoreChanged;
 
-        /// <summary>Raise score changed.</summary>
-        public static void RaiseScoreChanged(int score)
+        /// <summary>Raise score added event.</summary>
+        public static void RaiseScoreAdded(int scoreDelta)
         {
-            OnScoreChanged?.Invoke(score);
+            OnScoreAdded?.Invoke(scoreDelta);
+        }
+
+        /// <summary>Raise score changed event.</summary>
+        public static void RaiseScoreChanged(int totalScore)
+        {
+            OnScoreChanged?.Invoke(totalScore);
         }
 
         /// <summary>Generic level complete event.</summary>

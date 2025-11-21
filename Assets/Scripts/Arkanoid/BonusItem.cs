@@ -1,4 +1,5 @@
 using System;
+using MiniIT.CORE;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -14,53 +15,58 @@ namespace MiniIT.ARKANOID
     }
     
     /// <summary>
-    /// Falling bonus that applies effect when player catches it.
+    /// Falling bonus that applies an effect when caught by the paddle.
+    /// Implements <see cref="IPoolable"/> for pooling support.
     /// </summary>
-    public class BonusItem : MonoBehaviour
+    public class BonusItem : MonoBehaviour, IPoolable
     {
         [SerializeField] private float _fallSpeed = 3f;
-        [SerializeField] private BonusType _type = BonusType.MultiBall;
-        [SerializeField] private SpriteRenderer _spriteRenderer = null;
+        [SerializeField] private SpriteRenderer _spriteRenderer;
 
-        public BonusType Type => _type;
+        private Camera _camera;
+        public BonusType Type { get; private set; }
+
+        #region IPoolable
+
+        public void OnSpawned()
+            => gameObject.SetActive(true);
+
+        public void OnDespawned()
+            => gameObject.SetActive(false);
+
+        #endregion
 
         private void Start()
         {
-            SetRandomType();
+            _camera = Camera.main;
+            SetRandomType();   
         }
 
         private void Update()
         {
             transform.position += Vector3.down * _fallSpeed * Time.deltaTime;
 
-            if (transform.position.y < -6f)
-                Destroy(gameObject);
+            var bottomY = _camera.ScreenToWorldPoint(Vector3.zero).y;
+            if (transform.position.y < bottomY)
+                ArkanoidController.Instance.BonusPool.Return(this);
         }
 
         private void OnTriggerEnter2D(Collider2D col)
         {
-            if (!col.CompareTag("Paddle"))
-                return;
+            if (!col.CompareTag("Paddle")) return;
 
-            ArkanoidController.Instance.ApplyBonus(_type);
-            Destroy(gameObject);
+            ArkanoidController.Instance.ApplyBonus(Type);
+            ArkanoidController.Instance.BonusPool.Return(this);
         }
-        
-        /// <summary>
-        /// Sets a random bonus type.
-        /// </summary>
+
         public void SetRandomType()
         {
-            BonusType[] values = (BonusType[])System.Enum.GetValues(typeof(BonusType));
-            _type = values[Random.Range(0, values.Length)];
-            
-            if (_spriteRenderer == null)
-            {
-                return;
-            }
+            var values = (BonusType[])Enum.GetValues(typeof(BonusType));
+            Type = values[Random.Range(0, values.Length)];
 
-            // Map color id to color - simple mapping for demo
-            switch (_type)
+            if (_spriteRenderer == null) return;
+
+            switch (Type)
             {
                 case BonusType.MultiBall:
                     _spriteRenderer.color = Color.cyan;
@@ -69,7 +75,7 @@ namespace MiniIT.ARKANOID
                     _spriteRenderer.color = Color.green;
                     break;
                 default:
-                    _spriteRenderer.color = Color.cyan;
+                    _spriteRenderer.color = Color.white;
                     break;
             }
         }

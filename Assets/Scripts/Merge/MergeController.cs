@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MiniIT.CORE;
 using MiniIT.CONFIGS;
+using TMPro;
 
 namespace MiniIT.MERGE
 {
@@ -11,14 +12,19 @@ namespace MiniIT.MERGE
     /// </summary>
     public class MergeController : MonoBehaviour
     {
+        [Header("References")]
         [SerializeField] private GameConfigSO _config = null;
         [SerializeField] private Camera _mainCamera = null;
         [SerializeField] private Transform _boardTransform = null;
         [SerializeField] private GameObject _piecePrefab = null;
 
+        [Header("Board settings")]
         public int Width = 5;
         public int Height = 6;
         public float SpawnInterval = 3.0f;
+        
+        [Header("UI References")]
+        [SerializeField] public TextMeshProUGUI _scoreText = null;
 
         private GridCore<MergePiece> grid = null;
         private ObjectPool<MergePiece> pool = null;
@@ -54,6 +60,10 @@ namespace MiniIT.MERGE
                 _mainCamera = Camera.main;
             }
 
+            ScoreManager.Instance.scoreText = _scoreText;
+            
+            ScoreManager.Instance.ResetScore();
+            
             StartCoroutine(SpawnLoop());
         }
 
@@ -204,7 +214,7 @@ namespace MiniIT.MERGE
 
             StartCoroutine(SpawnPieceAnimated(tx, ty, targetLevel));
 
-            GameSignals.RaiseScoreChanged(1);
+            ScoreManager.Instance.AddScore(targetLevel);
         }
     }
 }

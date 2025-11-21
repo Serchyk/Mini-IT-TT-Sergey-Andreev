@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using MiniIT.CORE;
 
@@ -16,7 +17,10 @@ namespace MiniIT.MATCH3
         public int Y { get; set; } = 0;
 
         /// <summary>Color id (0..N-1).</summary>
-        public int ColorId { get; private set; } = 0;
+        public int SpriteId { get; private set; } = 0;
+        
+        [SerializeField]
+        private List<Sprite> sprites = null;
 
         private SpriteRenderer spriteRenderer = null;
 
@@ -26,9 +30,9 @@ namespace MiniIT.MATCH3
         }
 
         /// <summary>Initialize gem with color id and visual update.</summary>
-        public void Init(int colorId)
+        public void Init(int spriteId)
         {
-            ColorId = colorId;
+            SpriteId = spriteId;
             UpdateVisual();
         }
 
@@ -40,28 +44,7 @@ namespace MiniIT.MATCH3
                 return;
             }
 
-            // Map color id to color - simple mapping for demo
-            switch (ColorId)
-            {
-                case 0:
-                    spriteRenderer.color = Color.red;
-                    break;
-                case 1:
-                    spriteRenderer.color = Color.green;
-                    break;
-                case 2:
-                    spriteRenderer.color = Color.blue;
-                    break;
-                case 3:
-                    spriteRenderer.color = Color.yellow;
-                    break;
-                case 4:
-                    spriteRenderer.color = Color.magenta;
-                    break;
-                default:
-                    spriteRenderer.color = Color.cyan;
-                    break;
-            }
+            spriteRenderer.sprite = sprites[SpriteId];
         }
         
         public IEnumerator AnimateMove(Vector3 target, float duration = 0.15f)

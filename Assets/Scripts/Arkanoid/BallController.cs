@@ -1,65 +1,92 @@
+using System;
+using MiniIT.CORE;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace MiniIT.ARKANOID
 {
     /// <summary>
-    /// Controls ball movement and enforces world boundaries.
-    /// Ball bounces from walls and triggers lose condition when leaving bottom.
+    /// Handles physics, collision response and life‑cycle of a ball.
+    /// Implements <see cref="IPoolable"/> so it can be reused from the pool.
     /// </summary>
     [RequireComponent(typeof(Rigidbody2D))]
-    public class BallController : MonoBehaviour
+    public class BallController : MonoBehaviour, IPoolable
     {
-        [Header("Ball Setup")]
-        public float Speed = 8f;
+        [Header("Ball Setup")] public float Speed = 8f;
 
-        [Header("References")]
-        public Camera Cam;
+        [Header("References")] public Camera Cam;
+        
+        // Event for when ball is lost
+        public event Action<BallController> OnBallLost;
 
         private Rigidbody2D _rb;
         private float _radius;
+        private bool _isActive = false;
 
         private void Awake()
         {
             _rb = GetComponent<Rigidbody2D>();
             _radius = GetComponent<CircleCollider2D>().radius;
-
-            if (Cam == null)
-            {
-                Cam = Camera.main;
-            }
-        }
-
-        private void Start()
-        {
-            // Initial launch
-            _rb.velocity = new Vector2(0.4f, 1f).normalized * Speed;
+            if (Cam == null) Cam = Camera.main;
         }
 
         public void Init(float speed)
         {
             Speed = speed;
+            LaunchRandomDirection();
+            _isActive = true;
         }
 
-        private void FixedUpdate()
+        private void FixedUpdate() => EnforceBoundaries();
+
+        #region IPoolable
+
+        public void OnSpawned()
         {
-            EnforceBoundaries();
+            gameObject.SetActive(true);
+            _rb.velocity = Vector2.zero; // reset velocity
+            _isActive = true;
         }
 
-        /// <summary>
-        /// Keeps ball inside screen area. Bounces from walls and detects lose.
-        /// </summary>
+        public void OnDespawned()
+        {
+            gameObject.SetActive(false);
+            _rb.velocity = Vector2.zero;
+            _isActive = false;
+            
+            OnBallLost = null;
+        }
+
+        #endregion
+
+        #region Collision & physics
+
+        private void LaunchRandomDirection() =>
+            _rb.velocity = new Vector2(Random.value, 1f).normalized * Speed;
+
+        private void OnCollisionEnter2D(Collision2D other)
+        {
+            if (!other.collider.CompareTag("Paddle")) return;
+
+            var hitX = transform.position.x - other.transform.position.x;
+            var dir = new Vector2(hitX, 1f).normalized;
+            _rb.velocity = dir * Speed;
+        }
+
+        #endregion
+
+        #region Boundary enforcement
+
         private void EnforceBoundaries()
         {
-            Vector3 pos = transform.position;
+            var pos = transform.position;
+            var left = Cam.ScreenToWorldPoint(Vector3.zero).x + _radius;
+            var right = Cam.ScreenToWorldPoint(new Vector3(Screen.width, 0)).x - _radius;
+            var top = Cam.ScreenToWorldPoint(new Vector3(0, Screen.height)).y - _radius;
+            var bottom = Cam.ScreenToWorldPoint(Vector3.zero).y - _radius;
 
-            float left = Cam.ScreenToWorldPoint(Vector3.zero).x + _radius;
-            float right = Cam.ScreenToWorldPoint(new Vector3(Screen.width, 0)).x - _radius;
-            float top = Cam.ScreenToWorldPoint(new Vector3(0, Screen.height)).y - _radius;
-            float bottom = Cam.ScreenToWorldPoint(Vector3.zero).y - _radius;
+            var velocity = _rb.velocity;
 
-            Vector2 velocity = _rb.velocity;
-
-            // Horizontal walls
             if (pos.x < left)
             {
                 pos.x = left;
@@ -71,14 +98,12 @@ namespace MiniIT.ARKANOID
                 velocity.x = -Mathf.Abs(velocity.x);
             }
 
-            // Top wall
             if (pos.y > top)
             {
                 pos.y = top;
                 velocity.y = -Mathf.Abs(velocity.y);
             }
 
-            // Bottom = check if last ball
             if (pos.y < bottom)
             {
                 HandleBallLost();
@@ -89,46 +114,19 @@ namespace MiniIT.ARKANOID
             _rb.velocity = velocity;
         }
 
-        private void OnCollisionEnter2D(Collision2D other)
-        {
-            if (!other.collider.CompareTag("Paddle"))
-            {
-                return;
-            }
-
-            float hitX = transform.position.x - other.transform.position.x;
-            Vector2 dir = new Vector2(hitX, 1f).normalized;
-            _rb.velocity = dir * Speed;
-        }
-
-        /// <summary>
-        /// Called when this ball falls below the screen.
-        /// Checks if it was the last ball to trigger lose.
-        /// </summary>
         private void HandleBallLost()
         {
-            // Deactivate this ball
+            if (!_isActive) return;
+
+            _isActive = false;
+
+            // Notify controller about ball loss
+            OnBallLost?.Invoke(this);
+
+            // Deactivate immediately
             gameObject.SetActive(false);
-
-            // Count remaining active balls
-            BallController[] balls = FindObjectsOfType<BallController>();
-
-            bool anyActive = false;
-
-            foreach (BallController ball in balls)
-            {
-                if (ball.gameObject.activeInHierarchy)
-                {
-                    anyActive = true;
-                    break;
-                }
-            }
-
-            // If no balls left, player loses
-            if (!anyActive)
-            {
-                ArkanoidController.Instance.Lose();
-            }
         }
+
+        #endregion
     }
 }

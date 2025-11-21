@@ -17,7 +17,7 @@ namespace MiniIT.MATCH3
             if (center == null)
                 return new List<(int x, int y)>();
 
-            int color = center.ColorId;
+            int color = center.SpriteId;
             int width = grid.Width;
             int height = grid.Height;
 
@@ -29,7 +29,7 @@ namespace MiniIT.MATCH3
             for (int i = x - 1; i >= 0; i--)
             {
                 Gem g = grid.Get(i, y);
-                if (g == null || g.ColorId != color) break;
+                if (g == null || g.SpriteId != color) break;
                 hor.Add((i, y));
             }
 
@@ -37,7 +37,7 @@ namespace MiniIT.MATCH3
             for (int i = x + 1; i < width; i++)
             {
                 Gem g = grid.Get(i, y);
-                if (g == null || g.ColorId != color) break;
+                if (g == null || g.SpriteId != color) break;
                 hor.Add((i, y));
             }
 
@@ -53,7 +53,7 @@ namespace MiniIT.MATCH3
             for (int i = y - 1; i >= 0; i--)
             {
                 Gem g = grid.Get(x, i);
-                if (g == null || g.ColorId != color) break;
+                if (g == null || g.SpriteId != color) break;
                 ver.Add((x, i));
             }
 
@@ -61,7 +61,7 @@ namespace MiniIT.MATCH3
             for (int i = y + 1; i < height; i++)
             {
                 Gem g = grid.Get(x, i);
-                if (g == null || g.ColorId != color) break;
+                if (g == null || g.SpriteId != color) break;
                 ver.Add((x, i));
             }
 

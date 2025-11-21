@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using MiniIT.CORE;
 using MiniIT.CONFIGS;
+using TMPro;
 
 namespace MiniIT.MATCH3
 {
@@ -12,17 +13,10 @@ namespace MiniIT.MATCH3
     public class Match3Controller : MonoBehaviour
     {
         [Header("References")]
-        [SerializeField]
-        private GameConfigSO _config = null;
-
-        [SerializeField]
-        private Camera _mainCamera = null;
-
-        [SerializeField]
-        private Transform _boardTransform = null;
-
-        [SerializeField]
-        private GameObject _gemPrefab = null;
+        [SerializeField] private GameConfigSO _config = null;
+        [SerializeField] private Camera _mainCamera = null;
+        [SerializeField] private Transform _boardTransform = null;
+        [SerializeField] private GameObject _gemPrefab = null;
 
         [Header("Board settings")]
         public int Width = 8;
@@ -30,18 +24,27 @@ namespace MiniIT.MATCH3
         public int ColorCount = 6;
 
         [Header("Swipe settings")]
-        public float SwipeThreshold = 0.25f; // world units minimum to consider a swipe
-        public float SwapDuration = 0.12f; // seconds for swap animation
-        public float FallBaseDelay = 0.03f; // per cell fall delay
-        public float ColumnSpawnDelay = 0.06f; // stagger spawn per column
+        public float SwipeThreshold = 0.25f;
+        public float SwapDuration = 0.12f;
+        public float FallBaseDelay = 0.03f;
+        public float ColumnSpawnDelay = 0.06f;
+        
+        [Header("UI References")]
+        [SerializeField] public TextMeshProUGUI _scoreText = null;
 
-        private GridCore<Gem> grid = null;
-        private ObjectPool<Gem> gemPool = null;
+        private GridCore<Gem> _grid = null;
+        private ObjectPool<Gem> _gemPool = null;
 
         // runtime state
-        private bool _isBusy = false; // prevents new input while animations occur
+        private bool _isBusy = false;
         private SwipeInputState _swipeState = new SwipeInputState();
         private Camera _cachedCamera = null;
+
+        // Board offset calculation
+        private float _boardOffsetX = 0f;
+        private float _boardOffsetY = 0f;
+
+        #region Unity Lifecycle
 
         private void Awake()
         {
@@ -52,12 +55,17 @@ namespace MiniIT.MATCH3
                 ColorCount = _config.Match3ColorCount;
             }
 
-            grid = new GridCore<Gem>(Width, Height);
+            _grid = new GridCore<Gem>(Width, Height);
+            CalculateBoardOffsets();
 
-            gemPool = new ObjectPool<Gem>(() =>
+            _gemPool = new ObjectPool<Gem>(() =>
             {
                 GameObject go = Instantiate(_gemPrefab, _boardTransform);
                 Gem gem = go.GetComponent<Gem>();
+                if (gem == null)
+                {
+                    gem = go.AddComponent<Gem>();
+                }
                 go.name = "Gem";
                 return gem;
             }, Width * Height);
@@ -71,106 +79,191 @@ namespace MiniIT.MATCH3
             {
                 _cachedCamera = Camera.main;
             }
+            
+            ScoreManager.Instance.scoreText = _scoreText;
+            ScoreManager.Instance.ResetScore();
 
             StartCoroutine(InitBoardCo());
         }
 
+        #endregion
+
+        #region Board Initialization
+
+        /// <summary>
+        /// Calculate board offsets to center the grid properly.
+        /// </summary>
+        private void CalculateBoardOffsets()
+        {
+            _boardOffsetX = -Width * 0.5f + 0.5f;
+            _boardOffsetY = -Height * 0.5f + 0.5f;
+        }
+
         /// <summary>
         /// Initialize board without initial matches.
-        /// Uses a deterministic fill that avoids creating matches when placing each gem.
         /// </summary>
         private IEnumerator InitBoardCo()
         {
-            // fill sequentially from bottom-left to top-right,
-            // selecting random color that does not create a match at placement.
+            _isBusy = true;
+
+            // Clear any existing gems
+            ClearBoard();
+
+            // Fill board sequentially
             for (int x = 0; x < Width; ++x)
             {
                 for (int y = 0; y < Height; ++y)
                 {
-                    int color = GetRandomColorAvoidMatch(x, y);
-                    Gem gem = SpawnGemAt(x, y, color);
+                    int spriteId = GetRandomColorAvoidMatch(x, y);
+                    Gem gem = SpawnGemAt(x, y, spriteId);
 
-                    // small spawn pop animation
+                    // Ensure gem is properly positioned immediately
+                    Vector3 targetPos = BoardToWorld(x, y);
+                    gem.transform.position = targetPos;
+
+                    // Small spawn pop animation
                     gem.transform.localScale = Vector3.zero;
                     StartCoroutine(ScaleOver(gem.transform, Vector3.one, 0.12f));
 
-                    // small stagger for nicer effect
+                    // Small stagger for nicer effect
                     yield return new WaitForSeconds(0.01f);
                 }
             }
 
-            // short pause then allow input
+            // Verify all gems are properly placed
+            yield return StartCoroutine(VerifyBoardPlacement());
+
+            // Short pause then allow input
             yield return new WaitForSeconds(0.08f);
             _isBusy = false;
         }
+
+        /// <summary>
+        /// Verify that all gems are properly placed on the board.
+        /// </summary>
+        private IEnumerator VerifyBoardPlacement()
+        {
+            for (int x = 0; x < Width; ++x)
+            {
+                for (int y = 0; y < Height; ++y)
+                {
+                    Gem gem = _grid.Get(x, y);
+                    if (gem != null)
+                    {
+                        Vector3 expectedPos = BoardToWorld(x, y);
+                        if (Vector3.Distance(gem.transform.position, expectedPos) > 0.1f)
+                        {
+                            gem.transform.position = expectedPos;
+                        }
+
+                        // Ensure coordinates are correct
+                        if (gem.X != x || gem.Y != y)
+                        {
+                            gem.X = x;
+                            gem.Y = y;
+                        }
+                    }
+                }
+            }
+            yield return null;
+        }
+
+        /// <summary>
+        /// Clear the board and return all gems to pool.
+        /// </summary>
+        private void ClearBoard()
+        {
+            for (int x = 0; x < Width; ++x)
+            {
+                for (int y = 0; y < Height; ++y)
+                {
+                    Gem gem = _grid.Get(x, y);
+                    if (gem != null)
+                    {
+                        _grid.Set(x, y, null);
+                        _gemPool.Return(gem);
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        #region Gem Management
 
         /// <summary>
         /// Get a random color id that does not immediately create a match at (x,y).
         /// </summary>
         private int GetRandomColorAvoidMatch(int x, int y)
         {
-            List<int> excluded = new List<int>();
+            List<int> excludedColors = new List<int>();
 
-            // check two left in a row
+            // Check horizontal matches (two left in a row)
             if (x >= 2)
             {
-                Gem left1 = grid.Get(x - 1, y);
-                Gem left2 = grid.Get(x - 2, y);
+                Gem left1 = _grid.Get(x - 1, y);
+                Gem left2 = _grid.Get(x - 2, y);
 
-                if (left1 != null && left2 != null && left1.ColorId == left2.ColorId)
+                if (left1 != null && left2 != null && left1.SpriteId == left2.SpriteId)
                 {
-                    excluded.Add(left1.ColorId);
+                    excludedColors.Add(left1.SpriteId);
                 }
             }
 
-            // check two down in a column
+            // Check vertical matches (two down in a column)
             if (y >= 2)
             {
-                Gem down1 = grid.Get(x, y - 1);
-                Gem down2 = grid.Get(x, y - 2);
+                Gem down1 = _grid.Get(x, y - 1);
+                Gem down2 = _grid.Get(x, y - 2);
 
-                if (down1 != null && down2 != null && down1.ColorId == down2.ColorId)
+                if (down1 != null && down2 != null && down1.SpriteId == down2.SpriteId)
                 {
-                    excluded.Add(down1.ColorId);
+                    excludedColors.Add(down1.SpriteId);
                 }
             }
 
-            int attempt = 0;
-            int color = 0;
-
-            // Choose a random color not in excluded; if all excluded (rare), pick random
-            do
+            // Choose a random color not in excluded list
+            List<int> availableColors = new List<int>();
+            for (int i = 0; i < ColorCount; i++)
             {
-                color = Random.Range(0, ColorCount);
-                attempt++;
-                if (attempt > 10)
+                if (!excludedColors.Contains(i))
                 {
-                    break;
+                    availableColors.Add(i);
                 }
             }
-            while (excluded.Contains(color));
 
-            return color;
-        }
+            if (availableColors.Count > 0)
+            {
+                return availableColors[Random.Range(0, availableColors.Count)];
+            }
 
-        private int RandomRange(int minInclusive, int maxExclusive)
-        {
-            return Random.Range(minInclusive, maxExclusive);
+            // Fallback: return random color if all are excluded
+            return Random.Range(0, ColorCount);
         }
 
         /// <summary>
-        /// Spawn gem from pool, set coordinates and world pos.
+        /// Spawn gem from pool, set coordinates and world position.
         /// </summary>
         private Gem SpawnGemAt(int x, int y, int color)
         {
-            Gem gem = gemPool.Rent();
+            Gem gem = _gemPool.Rent();
+            if (gem == null)
+            {
+                Debug.LogError("Failed to spawn gem from pool!");
+                return null;
+            }
+
             gem.Init(color);
             gem.X = x;
             gem.Y = y;
-            grid.Set(x, y, gem);
+            gem.gameObject.SetActive(true);
 
-            Vector3 pos = BoardToWorld(x, y);
-            gem.transform.position = pos;
+            // Set position immediately
+            Vector3 worldPos = BoardToWorld(x, y);
+            gem.transform.position = worldPos;
+
+            _grid.Set(x, y, gem);
+
             return gem;
         }
 
@@ -179,10 +272,22 @@ namespace MiniIT.MATCH3
         /// </summary>
         private Vector3 BoardToWorld(int x, int y)
         {
-            float offsetX = -Width / 2.0f + 0.5f;
-            float offsetY = -Height / 2.0f + 0.5f;
-            return new Vector3(x + offsetX, y + offsetY, 0.0f);
+            return new Vector3(x + _boardOffsetX, y + _boardOffsetY, 0.0f);
         }
+
+        /// <summary>
+        /// Convert world position to board coordinates.
+        /// </summary>
+        private (int x, int y) WorldToBoard(Vector3 world)
+        {
+            int x = Mathf.RoundToInt(world.x - _boardOffsetX);
+            int y = Mathf.RoundToInt(world.y - _boardOffsetY);
+            return (x, y);
+        }
+
+        #endregion
+
+        #region Input Handling
 
         private void Update()
         {
@@ -200,8 +305,7 @@ namespace MiniIT.MATCH3
         }
 
         /// <summary>
-        /// Process swipe input (classic Candy Crush style).
-        /// Detect press -> drag -> release; perform immediate swap on sufficient drag.
+        /// Process swipe input.
         /// </summary>
         private void ProcessInput()
         {
@@ -209,31 +313,35 @@ namespace MiniIT.MATCH3
             if (Input.touchCount > 0)
             {
                 Touch t = Input.GetTouch(0);
+                Vector3 worldPos = _cachedCamera.ScreenToWorldPoint(new Vector3(t.position.x, t.position.y, -_cachedCamera.transform.position.z));
 
-                if (t.phase == TouchPhase.Began)
+                switch (t.phase)
                 {
-                    OnPointerDown(_cachedCamera.ScreenToWorldPoint(new Vector3(t.position.x, t.position.y, _cachedCamera.nearClipPlane)));
+                    case TouchPhase.Began:
+                        OnPointerDown(worldPos);
+                        break;
+                    case TouchPhase.Moved:
+                    case TouchPhase.Stationary:
+                        OnPointerMove(worldPos);
+                        break;
+                    case TouchPhase.Ended:
+                    case TouchPhase.Canceled:
+                        OnPointerUp();
+                        break;
                 }
-                else if (t.phase == TouchPhase.Moved || t.phase == TouchPhase.Stationary)
-                {
-                    OnPointerMove(_cachedCamera.ScreenToWorldPoint(new Vector3(t.position.x, t.position.y, _cachedCamera.nearClipPlane)));
-                }
-                else if (t.phase == TouchPhase.Ended || t.phase == TouchPhase.Canceled)
-                {
-                    OnPointerUp();
-                }
-
                 return;
             }
 
             // Mouse input
             if (Input.GetMouseButtonDown(0))
             {
-                OnPointerDown(_cachedCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, _cachedCamera.nearClipPlane)));
+                Vector3 worldPos = _cachedCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, -_cachedCamera.transform.position.z));
+                OnPointerDown(worldPos);
             }
             else if (Input.GetMouseButton(0))
             {
-                OnPointerMove(_cachedCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, _cachedCamera.nearClipPlane)));
+                Vector3 worldPos = _cachedCamera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, -_cachedCamera.transform.position.z));
+                OnPointerMove(worldPos);
             }
             else if (Input.GetMouseButtonUp(0))
             {
@@ -248,12 +356,7 @@ namespace MiniIT.MATCH3
 
         private void OnPointerMove(Vector3 world)
         {
-            if (!_swipeState.IsStarted)
-            {
-                return;
-            }
-
-            if (_swipeState.IsSwipePerformed)
+            if (!_swipeState.IsStarted || _swipeState.IsSwipePerformed)
             {
                 return;
             }
@@ -264,32 +367,9 @@ namespace MiniIT.MATCH3
                 return;
             }
 
-            // determine primary direction
-            if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
-            {
-                // horizontal swipe
-                if (delta.x > 0)
-                {
-                    TryPerformSwipe(Direction.Right);
-                }
-                else
-                {
-                    TryPerformSwipe(Direction.Left);
-                }
-            }
-            else
-            {
-                // vertical swipe
-                if (delta.y > 0)
-                {
-                    TryPerformSwipe(Direction.Up);
-                }
-                else
-                {
-                    TryPerformSwipe(Direction.Down);
-                }
-            }
-
+            // Determine primary direction
+            Direction swipeDirection = GetSwipeDirection(delta);
+            TryPerformSwipe(swipeDirection);
             _swipeState.MarkPerformed();
         }
 
@@ -298,68 +378,71 @@ namespace MiniIT.MATCH3
             _swipeState.Reset();
         }
 
+        private Direction GetSwipeDirection(Vector3 delta)
+        {
+            if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+            {
+                return delta.x > 0 ? Direction.Right : Direction.Left;
+            }
+            else
+            {
+                return delta.y > 0 ? Direction.Up : Direction.Down;
+            }
+        }
+
+        #endregion
+
+        #region Game Logic
+
         /// <summary>
-        /// Try to perform swipe in given direction from start cell (if valid).
+        /// Try to perform swipe in given direction from start cell.
         /// </summary>
         private void TryPerformSwipe(Direction dir)
         {
-            (int sx, int sy) = WorldToBoard(_swipeState.StartWorld);
+            (int startX, int startY) = WorldToBoard(_swipeState.StartWorld);
 
-            if (sx < 0 || sx >= Width || sy < 0 || sy >= Height)
+            if (!IsValidPosition(startX, startY))
             {
                 return;
             }
 
-            int tx = sx;
-            int ty = sy;
+            (int targetX, int targetY) = GetTargetPosition(startX, startY, dir);
 
-            switch (dir)
-            {
-                case Direction.Left:
-                    tx = sx - 1;
-                    ty = sy;
-                    break;
-                case Direction.Right:
-                    tx = sx + 1;
-                    ty = sy;
-                    break;
-                case Direction.Up:
-                    tx = sx;
-                    ty = sy + 1;
-                    break;
-                case Direction.Down:
-                    tx = sx;
-                    ty = sy - 1;
-                    break;
-            }
-
-            if (tx < 0 || tx >= Width || ty < 0 || ty >= Height)
+            if (!IsValidPosition(targetX, targetY))
             {
                 return;
             }
 
-            Gem a = grid.Get(sx, sy);
-            Gem b = grid.Get(tx, ty);
-            if (a == null || b == null)
+            Gem gemA = _grid.Get(startX, startY);
+            Gem gemB = _grid.Get(targetX, targetY);
+
+            if (gemA == null || gemB == null)
             {
                 return;
             }
 
-            // perform animated swap and match processing
-            StartCoroutine(DoSwapAndProcess(a, b));
+            StartCoroutine(DoSwapAndProcess(gemA, gemB));
         }
 
-        private (int x, int y) WorldToBoard(Vector3 world)
+        private (int x, int y) GetTargetPosition(int x, int y, Direction dir)
         {
-            float offsetX = -Width / 2.0f + 0.5f;
-            float offsetY = -Height / 2.0f + 0.5f;
-            int x = Mathf.RoundToInt(world.x - offsetX);
-            int y = Mathf.RoundToInt(world.y - offsetY);
-            return (x, y);
+            return dir switch
+            {
+                Direction.Left => (x - 1, y),
+                Direction.Right => (x + 1, y),
+                Direction.Up => (x, y + 1),
+                Direction.Down => (x, y - 1),
+                _ => (x, y)
+            };
+        }
+
+        private bool IsValidPosition(int x, int y)
+        {
+            return x >= 0 && x < Width && y >= 0 && y < Height;
         }
 
         /// <summary>
-        /// Swap two gems with animation, check for matches, handle swap-back if no matches.
+        /// Swap two gems with animation, check for matches.
         /// </summary>
         private IEnumerator DoSwapAndProcess(Gem a, Gem b)
         {
@@ -370,61 +453,59 @@ namespace MiniIT.MATCH3
 
             _isBusy = true;
 
-            // cache positions
-            int ax = a.X;
-            int ay = a.Y;
-            int bx = b.X;
-            int by = b.Y;
+            // Cache original positions
+            int aX = a.X, aY = a.Y;
+            int bX = b.X, bY = b.Y;
 
-            Vector3 aTarget = BoardToWorld(bx, by);
-            Vector3 bTarget = BoardToWorld(ax, ay);
+            // Swap positions in world space
+            Vector3 aTargetPos = BoardToWorld(bX, bY);
+            Vector3 bTargetPos = BoardToWorld(aX, aY);
 
-            // start parallel animations
-            Coroutine ca = StartCoroutine(a.AnimateMove(aTarget, SwapDuration));
-            Coroutine cb = StartCoroutine(b.AnimateMove(bTarget, SwapDuration));
-            yield return ca;
-            yield return cb;
+            // Animate swap
+            yield return StartCoroutine(AnimateSwap(a, aTargetPos, b, bTargetPos));
 
-            // swap in grid and internal coords
-            grid.Set(ax, ay, b);
-            grid.Set(bx, by, a);
+            // Update grid and coordinates
+            _grid.Set(aX, aY, b);
+            _grid.Set(bX, bY, a);
+            a.X = bX; a.Y = bY;
+            b.X = aX; b.Y = aY;
 
-            a.X = bx;
-            a.Y = by;
-            b.X = ax;
-            b.Y = ay;
+            // Check for matches
+            List<(int x, int y)> matchesA = MatchFinder.FindMatch(_grid, aX, aY);
+            List<(int x, int y)> matchesB = MatchFinder.FindMatch(_grid, bX, bY);
 
-            // search for matches for both swapped positions
-            List<(int x, int y)> ma = MatchFinder.FindMatch(grid, ax, ay);
-            List<(int x, int y)> mb = MatchFinder.FindMatch(grid, bx, by);
+            bool hasMatch = matchesA.Count >= 3 || matchesB.Count >= 3;
 
-            if (ma.Count >= 3 || mb.Count >= 3)
+            if (hasMatch)
             {
-                // handle matches and cascades
-                HandleMatches(ma);
-                HandleMatches(mb);
-
+                HandleMatches(matchesA);
+                HandleMatches(matchesB);
                 yield return StartCoroutine(ProcessGravityAndRefillAnimated());
             }
             else
             {
-                // no match => swap back with animation
-                Coroutine ca2 = StartCoroutine(a.AnimateMove(BoardToWorld(ax, ay), SwapDuration));
-                Coroutine cb2 = StartCoroutine(b.AnimateMove(BoardToWorld(bx, by), SwapDuration));
-                yield return ca2;
-                yield return cb2;
+                // No match - swap back
+                yield return StartCoroutine(AnimateSwap(a, BoardToWorld(aX, aY), b, BoardToWorld(bX, bY)));
 
-                // restore grid
-                grid.Set(ax, ay, a);
-                grid.Set(bx, by, b);
-
-                a.X = ax;
-                a.Y = ay;
-                b.X = bx;
-                b.Y = by;
+                // Restore original grid state
+                _grid.Set(aX, aY, a);
+                _grid.Set(bX, bY, b);
+                a.X = aX; a.Y = aY;
+                b.X = bX; b.Y = bY;
             }
 
             _isBusy = false;
+        }
+
+        /// <summary>
+        /// Animate swapping of two gems.
+        /// </summary>
+        private IEnumerator AnimateSwap(Gem gemA, Vector3 targetA, Gem gemB, Vector3 targetB)
+        {
+            Coroutine moveA = StartCoroutine(gemA.AnimateMove(targetA, SwapDuration));
+            Coroutine moveB = StartCoroutine(gemB.AnimateMove(targetB, SwapDuration));
+            yield return moveA;
+            yield return moveB;
         }
 
         /// <summary>
@@ -432,105 +513,101 @@ namespace MiniIT.MATCH3
         /// </summary>
         private void HandleMatches(List<(int x, int y)> match)
         {
-            if (match == null)
+            if (match == null || match.Count < 3)
             {
                 return;
             }
 
             foreach ((int x, int y) in match)
             {
-                Gem g = grid.Get(x, y);
-                if (g != null)
+                Gem gem = _grid.Get(x, y);
+                if (gem != null)
                 {
-                    grid.Set(x, y, null);
-
-                    // optional explode VFX can be invoked here
-
-                    gemPool.Return(g);
-                    GameSignals.RaiseScoreChanged(1);
+                    _grid.Set(x, y, null);
+                    _gemPool.Return(gem);
+                    ScoreManager.Instance.AddScore(1);
                 }
             }
         }
 
         /// <summary>
-        /// Animated gravity and refill: gems fall with delays per cell, new gems spawn at top with stagger per column.
+        /// Animated gravity and refill.
         /// </summary>
         private IEnumerator ProcessGravityAndRefillAnimated()
         {
-            // Apply gravity per column, animate falling
+            // Apply gravity
             for (int x = 0; x < Width; ++x)
             {
                 int writeY = 0;
-                for (int y = 0; y < Height; ++y)
+                for (int readY = 0; readY < Height; ++readY)
                 {
-                    Gem g = grid.Get(x, y);
-                    if (g != null)
+                    Gem gem = _grid.Get(x, readY);
+                    if (gem != null)
                     {
-                        if (y != writeY)
+                        if (readY != writeY)
                         {
-                            grid.Set(x, writeY, g);
-                            grid.Set(x, y, null);
-                            g.Y = writeY;
+                            // Move gem down
+                            _grid.Set(x, writeY, gem);
+                            _grid.Set(x, readY, null);
+                            gem.Y = writeY;
 
-                            Vector3 target = BoardToWorld(x, writeY);
-                            // animate fall with slight delay depending on distance
-                            float delay = (y - writeY) * FallBaseDelay;
+                            Vector3 targetPos = BoardToWorld(x, writeY);
+                            float delay = (readY - writeY) * FallBaseDelay;
+                            
                             if (delay > 0f)
                             {
                                 yield return new WaitForSeconds(delay);
                             }
 
-                            yield return StartCoroutine(g.AnimateMove(target, 0.08f + (y - writeY) * 0.02f));
+                            yield return StartCoroutine(gem.AnimateMove(targetPos, 0.04f + (readY - writeY) * 0.02f));
                         }
-
                         writeY++;
                     }
                 }
 
-                // fill remaining cells in this column from top
-                for (int ny = writeY; ny < Height; ++ny)
+                // Spawn new gems for empty slots
+                for (int newY = writeY; newY < Height; ++newY)
                 {
-                    int color = RandomRange(0, ColorCount);
-                    Gem newGem = SpawnGemAt(x, ny, color);
+                    yield return new WaitForSeconds(ColumnSpawnDelay);
 
-                    // spawn above board and drop
-                    Vector3 abovePos = BoardToWorld(x, Height + 1);
-                    newGem.transform.position = abovePos;
+                    int color = Random.Range(0, ColorCount);
+                    Gem newGem = SpawnGemAt(x, newY, color);
 
-                    Vector3 downTarget = BoardToWorld(x, ny);
+                    // Spawn above and drop down
+                    Vector3 spawnPos = BoardToWorld(x, Height + (newY - writeY) + 1);
+                    newGem.transform.position = spawnPos;
 
-                    // small stagger per column for nicer effect
-                    yield return new WaitForSeconds(ColumnSpawnDelay * x);
-
-                    // animate drop
-                    yield return StartCoroutine(newGem.AnimateMove(downTarget, 0.12f + (Height - ny) * 0.02f));
+                    Vector3 targetPos = BoardToWorld(x, newY);
+                    yield return StartCoroutine(newGem.AnimateMove(targetPos, 0.12f + (Height - newY) * 0.02f));
                 }
             }
 
-            // brief pause to allow cascades to be detected visually
+            // Check for cascades
             yield return new WaitForSeconds(0.05f);
 
-            // After refill, check for new matches (cascades)
             bool foundCascade = false;
             for (int x = 0; x < Width; ++x)
             {
                 for (int y = 0; y < Height; ++y)
                 {
-                    List<(int x, int y)> m = MatchFinder.FindMatch(grid, x, y);
-                    if (m.Count >= 3)
+                    List<(int x, int y)> match = MatchFinder.FindMatch(_grid, x, y);
+                    if (match.Count >= 3)
                     {
                         foundCascade = true;
-                        HandleMatches(m);
+                        HandleMatches(match);
                     }
                 }
             }
 
             if (foundCascade)
             {
-                // process next cascade
                 yield return StartCoroutine(ProcessGravityAndRefillAnimated());
             }
         }
+
+        #endregion
+
+        #region Utility Methods
 
         /// <summary>
         /// Smoothly scale transform from current to target over duration.
@@ -543,19 +620,18 @@ namespace MiniIT.MATCH3
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
-                float f = Mathf.Clamp01(elapsed / duration);
-                t.localScale = Vector3.Lerp(start, target, Mathf.SmoothStep(0f, 1f, f));
+                float progress = Mathf.Clamp01(elapsed / duration);
+                t.localScale = Vector3.Lerp(start, target, Mathf.SmoothStep(0f, 1f, progress));
                 yield return null;
             }
 
             t.localScale = target;
         }
 
-        #region Nested types
+        #endregion
 
-        /// <summary>
-        /// Simple swipe input state.
-        /// </summary>
+        #region Nested Types
+
         private class SwipeInputState
         {
             public Vector3 StartWorld { get; private set; } = Vector3.zero;

@@ -3,26 +3,22 @@ using UnityEngine;
 namespace MiniIT.ARKANOID
 {
     /// <summary>
-    /// Paddle controller with PC/mobile input and temporary bonus scaling.
+    /// Handles player input (mouse / touch) and temporary bonus scaling.
     /// </summary>
     public class PaddleController : MonoBehaviour
     {
         [SerializeField] private float _moveSpeed = 10f;
-
         private Camera _camera;
+
         private Vector3 _baseScale;
-        
-        private float leftLimit;
-        private float rightLimit;
-        
-        private float _bonusTimer = 0f;
-        private bool _bonusActive = false;
+        private float leftLimit, rightLimit;
+        private float _bonusTimer;
+        private bool _bonusActive;
 
         private void Awake()
         {
             _camera = Camera.main;
             _baseScale = transform.localScale;
-
             UpdateBounds();
         }
 
@@ -30,7 +26,7 @@ namespace MiniIT.ARKANOID
         {
             UpdateBounds();
 
-            float? x = GetInputX();
+            var x = GetInputX();
             if (x.HasValue)
             {
                 Vector3 pos = transform.position;
@@ -47,14 +43,13 @@ namespace MiniIT.ARKANOID
             float halfW = transform.localScale.x * 0.5f;
 
             leftLimit = _camera.ScreenToWorldPoint(Vector3.zero).x + halfW;
-            rightLimit = _camera.ScreenToWorldPoint(
-                new Vector3(Screen.width, 0)
-            ).x - halfW;
+            rightLimit = _camera.ScreenToWorldPoint(new Vector3(Screen.width, 0)).x - halfW;
         }
 
         public void PlaceAtScreenBottom()
         {
-            Vector3 p = _camera.ScreenToWorldPoint(new Vector3(Screen.width / 2, 40f, 10f));
+            var p = _camera.ScreenToWorldPoint(
+                new Vector3(Screen.width / 2f, 40f, 10f));
             transform.position = new Vector3(0, p.y, 0);
         }
 
@@ -78,11 +73,9 @@ namespace MiniIT.ARKANOID
 
         private void UpdateBonus()
         {
-            if (!_bonusActive)
-                return;
+            if (!_bonusActive) return;
 
             _bonusTimer -= Time.deltaTime;
-
             if (_bonusTimer <= 0f)
             {
                 transform.localScale = _baseScale;
