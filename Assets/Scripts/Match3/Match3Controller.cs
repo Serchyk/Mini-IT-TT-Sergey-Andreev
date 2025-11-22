@@ -117,7 +117,6 @@ namespace MiniIT.MATCH3
                     int spriteId = GetRandomColorAvoidMatch(x, y);
                     Gem gem = SpawnGemAt(x, y, spriteId);
 
-                    // Ensure gem is properly positioned immediately
                     Vector3 targetPos = BoardToWorld(x, y);
                     gem.transform.position = targetPos;
 
@@ -198,7 +197,6 @@ namespace MiniIT.MATCH3
         {
             List<int> excludedColors = new List<int>();
 
-            // Check horizontal matches (two left in a row)
             if (x >= 2)
             {
                 Gem left1 = _grid.Get(x - 1, y);
@@ -210,7 +208,6 @@ namespace MiniIT.MATCH3
                 }
             }
 
-            // Check vertical matches (two down in a column)
             if (y >= 2)
             {
                 Gem down1 = _grid.Get(x, y - 1);
@@ -222,7 +219,6 @@ namespace MiniIT.MATCH3
                 }
             }
 
-            // Choose a random color not in excluded list
             List<int> availableColors = new List<int>();
             for (int i = 0; i < ColorCount; i++)
             {
@@ -236,8 +232,7 @@ namespace MiniIT.MATCH3
             {
                 return availableColors[Random.Range(0, availableColors.Count)];
             }
-
-            // Fallback: return random color if all are excluded
+            
             return Random.Range(0, ColorCount);
         }
 
@@ -258,7 +253,6 @@ namespace MiniIT.MATCH3
             gem.Y = y;
             gem.gameObject.SetActive(true);
 
-            // Set position immediately
             Vector3 worldPos = BoardToWorld(x, y);
             gem.transform.position = worldPos;
 
@@ -457,14 +451,12 @@ namespace MiniIT.MATCH3
             int aX = a.X, aY = a.Y;
             int bX = b.X, bY = b.Y;
 
-            // Swap positions in world space
             Vector3 aTargetPos = BoardToWorld(bX, bY);
             Vector3 bTargetPos = BoardToWorld(aX, aY);
 
             // Animate swap
             yield return StartCoroutine(AnimateSwap(a, aTargetPos, b, bTargetPos));
 
-            // Update grid and coordinates
             _grid.Set(aX, aY, b);
             _grid.Set(bX, bY, a);
             a.X = bX; a.Y = bY;
@@ -484,10 +476,8 @@ namespace MiniIT.MATCH3
             }
             else
             {
-                // No match - swap back
                 yield return StartCoroutine(AnimateSwap(a, BoardToWorld(aX, aY), b, BoardToWorld(bX, bY)));
 
-                // Restore original grid state
                 _grid.Set(aX, aY, a);
                 _grid.Set(bX, bY, b);
                 a.X = aX; a.Y = aY;
@@ -535,7 +525,6 @@ namespace MiniIT.MATCH3
         /// </summary>
         private IEnumerator ProcessGravityAndRefillAnimated()
         {
-            // Apply gravity
             for (int x = 0; x < Width; ++x)
             {
                 int writeY = 0;
@@ -546,7 +535,6 @@ namespace MiniIT.MATCH3
                     {
                         if (readY != writeY)
                         {
-                            // Move gem down
                             _grid.Set(x, writeY, gem);
                             _grid.Set(x, readY, null);
                             gem.Y = writeY;
@@ -565,7 +553,6 @@ namespace MiniIT.MATCH3
                     }
                 }
 
-                // Spawn new gems for empty slots
                 for (int newY = writeY; newY < Height; ++newY)
                 {
                     yield return new WaitForSeconds(ColumnSpawnDelay);
@@ -573,7 +560,6 @@ namespace MiniIT.MATCH3
                     int color = Random.Range(0, ColorCount);
                     Gem newGem = SpawnGemAt(x, newY, color);
 
-                    // Spawn above and drop down
                     Vector3 spawnPos = BoardToWorld(x, Height + (newY - writeY) + 1);
                     newGem.transform.position = spawnPos;
 

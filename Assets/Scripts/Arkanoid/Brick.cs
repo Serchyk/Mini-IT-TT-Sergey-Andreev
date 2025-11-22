@@ -61,19 +61,15 @@ namespace MiniIT.ARKANOID
 
         private void DestroyBrick()
         {
-            // Spawn visual effects
             if (_destroyEffect != null)
             {
                 Instantiate(_destroyEffect, transform.position, Quaternion.identity);
             }
 
-            // Try to spawn bonus
             TrySpawnBonus();
 
-            // Notify about destruction with this brick instance
             OnBrickDestroyed?.Invoke(this);
 
-            // Destroy the brick
             Destroy(gameObject);
         }
 

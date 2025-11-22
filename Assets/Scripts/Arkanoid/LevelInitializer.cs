@@ -13,8 +13,8 @@ namespace MiniIT.ARKANOID
         [SerializeField] private Transform _container;
 
         [Header("Generation")]
-        public float EmptyChance = 0.15f;   // probability a cell stays empty
-        public int MaxHP = 1;              // maximum hit points for a brick
+        public float EmptyChance = 0.15f;
+        public int MaxHP = 1;
 
         /// <summary>
         /// Builds rows × cols bricks and returns the number of instantiated bricks.
@@ -25,7 +25,7 @@ namespace MiniIT.ARKANOID
 
             int count = 0;
             float offsetX = -(cols * _cellW) * 0.5f + _cellW * 0.5f;
-            float startY   = 2f; // top of the playfield
+            float startY   = 2f;
 
             for (int r = 0; r < rows; ++r)
             for (int c = 0; c < cols; ++c)

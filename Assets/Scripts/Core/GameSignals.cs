@@ -24,14 +24,5 @@ namespace MiniIT.CORE
         {
             OnScoreChanged?.Invoke(totalScore);
         }
-
-        /// <summary>Generic level complete event.</summary>
-        public static event Action<string> OnLevelComplete;
-
-        /// <summary>Raise level complete.</summary>
-        public static void RaiseLevelComplete(string levelId)
-        {
-            OnLevelComplete?.Invoke(levelId);
-        }
     }
 }

@@ -42,7 +42,7 @@ namespace MiniIT.MATCH3
             }
 
             if (hor.Count >= 3)
-                return hor;  // ONLY horizontal match
+                return hor;
 
 
             // --- VERTICAL ---
@@ -66,7 +66,7 @@ namespace MiniIT.MATCH3
             }
 
             if (ver.Count >= 3)
-                return ver; // ONLY vertical match
+                return ver;
 
             return new List<(int x, int y)>();
         }

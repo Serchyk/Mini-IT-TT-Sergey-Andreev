@@ -8,17 +8,6 @@ namespace MiniIT.CORE
 {
     public static class InputAdapter
     {
-        /// <summary>Return true if there is a primary pointer down this frame.</summary>
-        public static bool IsPointerDown()
-        {
-            if (Input.touchCount > 0)
-            {
-                return Input.GetTouch(0).phase == TouchPhase.Began;
-            }
-
-            return Input.GetMouseButtonDown(0);
-        }
-
         /// <summary>Return pointer world position using main camera.</summary>
         public static Vector3 GetPointerWorldPosition(Camera cam)
         {

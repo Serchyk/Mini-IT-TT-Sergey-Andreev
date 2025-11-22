@@ -28,15 +28,13 @@ namespace MiniIT.CORE
         [SerializeField] private Vector2 _pcMaxBounds = new Vector2(7f, 5f);
         [SerializeField] private Vector2 _mobileMinBounds = new Vector2(-4.5f, -1f);
         [SerializeField] private Vector2 _mobileMaxBounds = new Vector2(4.5f, 2f);
-
-        // ========== GRID MODE ==========
+        
         [Header("Grid Mode Settings")]
         [SerializeField] private int _gridWidth = 0;
         [SerializeField] private int _gridHeight = 0;
         [SerializeField] private float _baseCellSize = 1f;
         [SerializeField] private Transform _cellContainer = null;
-
-        // ========== FREE BOUNDS MODE ==========
+        
         [Header("Free Bounds Mode Settings")]
         [SerializeField] private Vector2 _minBounds = new Vector2(-7f, -4f);
         [SerializeField] private Vector2 _maxBounds = new Vector2(7f, 5f);
@@ -56,7 +54,6 @@ namespace MiniIT.CORE
 
         private void Update()
         {
-            // Re-apply scaling if aspect ratio changes (window resize, orientation change)
             float currentAspect = (float)Screen.width / Screen.height;
             if (Mathf.Abs(currentAspect - _lastAspectRatio) > 0.01f)
             {
@@ -153,33 +150,10 @@ namespace MiniIT.CORE
             _lastAspectRatio = (float)Screen.width / Screen.height;
         }
 
-        /// <summary>
-        /// Set custom bounds for FreeBounds mode.
-        /// </summary>
-        public void SetBounds(Vector2 minBounds, Vector2 maxBounds)
-        {
-            _minBounds = minBounds;
-            _maxBounds = maxBounds;
-            _usePlatformSpecificBounds = false;
-            ApplyScaling();
-        }
-
-        /// <summary>
-        /// Enable platform-specific bounds detection.
-        /// </summary>
-        public void UsePlatformBounds(bool usePlatformBounds)
-        {
-            _usePlatformSpecificBounds = usePlatformBounds;
-            ApplyScaling();
-        }
-
         #endregion
 
         #region Scaling Methods
 
-        // =======================================================
-        // =                     GRID MODE                       =
-        // =======================================================
         private void ScaleGrid()
         {
             if (_gridWidth <= 0 || _gridHeight <= 0)
@@ -189,17 +163,14 @@ namespace MiniIT.CORE
 
             float aspect = (float)Screen.width / Screen.height;
 
-            // Calculate required size to fit the grid
             float requiredWidth = _gridWidth * _baseCellSize;
             float requiredHeight = _gridHeight * _baseCellSize;
 
-            // Calculate orthographic size based on aspect ratio
             float orthoSizeBasedOnWidth = (requiredWidth / aspect) * 0.5f / _padding;
             float orthoSizeBasedOnHeight = requiredHeight * 0.5f / _padding;
 
             _camera.orthographicSize = Mathf.Max(orthoSizeBasedOnWidth, orthoSizeBasedOnHeight);
 
-            // Calculate and apply scaling to fit the grid perfectly
             float visibleWorldHeight = _camera.orthographicSize * 2f;
             float visibleWorldWidth = visibleWorldHeight * aspect;
 
@@ -212,7 +183,6 @@ namespace MiniIT.CORE
             {
                 _cellContainer.localScale = new Vector3(finalScale, finalScale, 1f);
 
-                // Center the grid
                 float offsetX = -_gridWidth * 0.5f * _baseCellSize * finalScale + _baseCellSize * finalScale * 0.5f;
                 float offsetY = -_gridHeight * 0.5f * _baseCellSize * finalScale + _baseCellSize * finalScale * 0.5f;
 
@@ -220,14 +190,10 @@ namespace MiniIT.CORE
             }
         }
 
-        // =======================================================
-        // =                 FREE BOUNDS MODE                    =
-        // =======================================================
         private void ScaleFreeBounds()
         {
             float aspect = (float)Screen.width / Screen.height;
 
-            // Calculate bounds dimensions
             float boundsWidth = _effectiveMaxBounds.x - _effectiveMinBounds.x;
             float boundsHeight = _effectiveMaxBounds.y - _effectiveMinBounds.y;
 
@@ -237,14 +203,11 @@ namespace MiniIT.CORE
                 return;
             }
 
-            // Calculate required orthographic size to fit bounds
             float orthoSizeBasedOnWidth = (boundsWidth / aspect) * 0.5f / _padding;
             float orthoSizeBasedOnHeight = boundsHeight * 0.5f / _padding;
 
-            // Use the larger size to ensure everything fits
             _camera.orthographicSize = Mathf.Max(orthoSizeBasedOnWidth, orthoSizeBasedOnHeight);
 
-            // Center camera on bounds
             Vector3 boundsCenter = new Vector3(
                 (_effectiveMinBounds.x + _effectiveMaxBounds.x) * 0.5f,
                 (_effectiveMinBounds.y + _effectiveMaxBounds.y) * 0.5f,
@@ -264,15 +227,12 @@ namespace MiniIT.CORE
                 return;
             }
 
-            // Calculate visible world dimensions
             float visibleWorldHeight = _camera.orthographicSize * 2f;
             float visibleWorldWidth = visibleWorldHeight * aspect;
 
-            // Calculate scale factors
             float scaleX = (visibleWorldWidth * _padding) / boundsWidth;
             float scaleY = (visibleWorldHeight * _padding) / boundsHeight;
 
-            // Use the smaller scale to ensure everything fits within bounds
             float finalScale = Mathf.Min(scaleX, scaleY);
 
             _rootToScale.localScale = new Vector3(finalScale, finalScale, 1f);
@@ -294,8 +254,8 @@ namespace MiniIT.CORE
             float aspect = (float)Screen.width / Screen.height;
             
             // Common mobile aspect ratios
-            bool isCommonMobileAspect = aspect >= 0.56f && aspect <= 0.6f; // 9:16 to 10:16
-            bool isTabletAspect = aspect >= 0.75f && aspect <= 0.8f; // 3:4 to 4:5
+            bool isCommonMobileAspect = aspect >= 0.56f && aspect <= 0.6f;
+            bool isTabletAspect = aspect >= 0.75f && aspect <= 0.8f;
             
             return isCommonMobileAspect || isTabletAspect;
         }
@@ -311,7 +271,6 @@ namespace MiniIT.CORE
                 CalculateEffectiveBounds();
             }
 
-            // Draw bounds visualization
             Gizmos.color = Color.green;
             Vector3 center = new Vector3(
                 (_effectiveMinBounds.x + _effectiveMaxBounds.x) * 0.5f,
@@ -327,7 +286,6 @@ namespace MiniIT.CORE
 
             Gizmos.DrawWireCube(center, size);
 
-            // Draw camera frustum if camera is set
             if (_camera != null && _camera.orthographic)
             {
                 Gizmos.color = Color.yellow;
@@ -336,14 +294,6 @@ namespace MiniIT.CORE
                 Gizmos.DrawWireCube(_camera.transform.position, new Vector3(width, height, 0.1f));
             }
         }
-
-        #endregion
-
-        #region Public Properties
-
-        public Vector2 EffectiveMinBounds => _effectiveMinBounds;
-        public Vector2 EffectiveMaxBounds => _effectiveMaxBounds;
-        public bool IsUsingMobileBounds => _usePlatformSpecificBounds && IsMobilePlatform();
 
         #endregion
 

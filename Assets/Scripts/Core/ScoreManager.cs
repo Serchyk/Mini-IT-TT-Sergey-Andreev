@@ -96,7 +96,7 @@ namespace MiniIT.CORE
                 return;
             }
 
-            // Format: "Очков: 12,345"
+            // Format: "Scores: 12,345"
             scoreText.text = $"Очков: {_currentScore:N0}";
         }
 
@@ -108,7 +108,6 @@ namespace MiniIT.CORE
                 return;
             }
 
-            // Stop existing coroutine if running
             if (_deltaTextCoroutine != null)
             {
                 StopCoroutine(_deltaTextCoroutine);
@@ -160,24 +159,7 @@ namespace MiniIT.CORE
 
             _currentScore += scoreDelta;
             
-            // Raise both events for flexibility
             GameSignals.RaiseScoreAdded(scoreDelta);
-            GameSignals.RaiseScoreChanged(_currentScore);
-        }
-
-        /// <summary>
-        /// Set absolute score value and raise events.
-        /// </summary>
-        public void SetScore(int totalScore)
-        {
-            int delta = totalScore - _currentScore;
-            _currentScore = totalScore;
-            
-            if (delta != 0)
-            {
-                GameSignals.RaiseScoreAdded(delta);
-            }
-            
             GameSignals.RaiseScoreChanged(_currentScore);
         }
 

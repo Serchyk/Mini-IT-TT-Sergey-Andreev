@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Doozy.Runtime.Signals;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using MiniIT.CONFIGS;
@@ -35,14 +36,6 @@ namespace MiniIT.ARKANOID
 
         private int _remainingBricks = 0;
         private readonly HashSet<BallController> _activeBalls = new HashSet<BallController>();
-        private bool _isGameOver = false;
-
-        #region Properties
-
-        public int ActiveBallCount => _activeBalls.Count;
-        public bool IsGameOver => _isGameOver;
-
-        #endregion
 
         #region Unity Lifecycle
 
@@ -75,31 +68,17 @@ namespace MiniIT.ARKANOID
         /// <summary>Initialises the level, registers callbacks and spawns the first ball.</summary>
         private void InitGame()
         {
-            _isGameOver = false;
             _activeBalls.Clear();
 
             ScoreManager.Instance.scoreText = _scoreText;
             ScoreManager.Instance.ResetScore();
 
-            // Build level
             _remainingBricks = _level.BuildLevel(_config.BricksRows, _config.BricksCols);
             
-            // Subscribe to events
             Brick.OnBrickDestroyed += HandleBrickDestroyed;
             
-            // Setup paddle and ball
             _paddle.PlaceAtScreenBottom();
             SpawnBall();
-        }
-
-        /// <summary>Return to the first scene (used by both win and lose).</summary>
-        private void Restart()
-        {
-            if (_isGameOver) return;
-
-            _isGameOver = true;
-            Brick.OnBrickDestroyed -= HandleBrickDestroyed;
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         #endregion
@@ -113,7 +92,6 @@ namespace MiniIT.ARKANOID
         {
             if (destroyedBrick != null)
             {
-                // Add the brick's score value to current score
                 ScoreManager.Instance.AddScore(destroyedBrick.ScoreValue);
             }
 
@@ -134,23 +112,20 @@ namespace MiniIT.ARKANOID
         /// </summary>
         private void HandleBallLost(BallController lostBall)
         {
-            if (_isGameOver || lostBall == null)
+            if (lostBall == null)
             {
                 return;
             }
 
-            // Remove ball from active set
             _activeBalls.Remove(lostBall);
             lostBall.OnBallLost -= HandleBallLost;
 
-            // Return ball to pool
             if (BallPool != null)
             {
                 BallPool.Return(lostBall);
             }
 
 
-            // Check if this was the last ball
             if (_activeBalls.Count == 0)
             {
                 Lose();
@@ -174,10 +149,8 @@ namespace MiniIT.ARKANOID
             ball.Init(_config.BallSpeed);
             ball.gameObject.SetActive(true);
 
-            // Subscribe to ball lost event
             ball.OnBallLost += HandleBallLost;
             
-            // Add to active balls
             _activeBalls.Add(ball);
         }
 
@@ -197,14 +170,12 @@ namespace MiniIT.ARKANOID
 
         private void ApplyMultiBallBonus()
         {
-            // Get current active balls and spawn additional ones
             var currentBalls = _activeBalls.ToArray();
             
             foreach (var ball in currentBalls)
             {
                 if (ball != null && ball.gameObject.activeInHierarchy)
                 {
-                    // Spawn 1 additional ball per existing ball
                     BallController newBall = BallPool.Rent();
                     if (newBall != null)
                     {
@@ -217,14 +188,12 @@ namespace MiniIT.ARKANOID
 
         public void Win()
         {
-            // Add bonus for completing level
-            ScoreManager.Instance.AddScore(1000);
-            Restart();
+            Signal.Send("Gameplay", "Win");
         }
 
         public void Lose()
-        {
-            Restart();
+        {   
+            Signal.Send("Gameplay", "Lose");
         }
 
         #endregion

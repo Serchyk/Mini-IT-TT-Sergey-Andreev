@@ -17,7 +17,7 @@ namespace MiniIT.MERGE
 
         [Header("Visual Settings")]
         [SerializeField] private SpriteRenderer _renderer = null;
-        [SerializeField] private Gradient _levelColorGradient = null; // цвета по уровню
+        [SerializeField] private Gradient _levelColorGradient = null;
         [SerializeField] private float _baseScale = 0.8f;
         [SerializeField] private float _scalePerLevel = 0.1f;
         [SerializeField] private float _popScaleMultiplier = 1.3f;

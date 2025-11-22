@@ -44,7 +44,7 @@ namespace MiniIT.ARKANOID
         public void OnSpawned()
         {
             gameObject.SetActive(true);
-            _rb.velocity = Vector2.zero; // reset velocity
+            _rb.velocity = Vector2.zero;
             _isActive = true;
         }
 
@@ -120,10 +120,8 @@ namespace MiniIT.ARKANOID
 
             _isActive = false;
 
-            // Notify controller about ball loss
             OnBallLost?.Invoke(this);
 
-            // Deactivate immediately
             gameObject.SetActive(false);
         }
 
